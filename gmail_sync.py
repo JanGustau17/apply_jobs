@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import time
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -79,7 +80,35 @@ def load_canonical_statuses() -> set[str]:
     if not STATES_FILE.exists():
         return {"Evaluated", "Applied", "Responded", "Interview", "Offer", "Rejected", "Discarded", "SKIP"}
     data = yaml.safe_load(STATES_FILE.read_text())
-    return set(data.get("states", {}).keys()) if isinstance(data.get("states"), dict) else set(data.get("states", []))
+    raw = data.get("states", [])
+    if isinstance(raw, dict):
+        return {str(k) for k in raw.keys()}
+    if isinstance(raw, list):
+        out: set[str] = set()
+        for item in raw:
+            if isinstance(item, str):
+                out.add(item)
+            elif isinstance(item, dict) and isinstance(item.get("name"), str):
+                out.add(item["name"])
+        return out
+    return set()
+
+
+def coerce_str(value) -> Optional[str]:
+    """Coerce GPT/JSON field to str. Handles dict/list edge cases where model returns nested object."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("name", "value", "label", "id", "text"):
+            v = value.get(key)
+            if isinstance(v, str):
+                return v
+        return None
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    return None
 
 
 def normalize_company(name: str) -> str:
@@ -224,12 +253,16 @@ def sync_once() -> None:
     print(f"[gmail-sync] candidates={len(ids)} new={len(new_ids)}", flush=True)
     for msg_id in new_ids:
         try:
+            if not isinstance(msg_id, str):
+                raise TypeError(f"msg_id is not str: {type(msg_id).__name__}={msg_id!r}")
             msg = parse_message(svc, msg_id)
             result = classify(client, msg)
-            company = result.get("company")
-            label = result.get("classification")
-            summary = result.get("summary_one_line", "")
-            if not company or label not in LABEL_TO_STATUS and label != "followup_needed":
+            if not isinstance(result, dict):
+                raise TypeError(f"classify() did not return dict: {type(result).__name__}={result!r}")
+            company = coerce_str(result.get("company"))
+            label = coerce_str(result.get("classification"))
+            summary = coerce_str(result.get("summary_one_line")) or ""
+            if not company or (label not in LABEL_TO_STATUS and label != "followup_needed"):
                 append_log(company or "?", None, "skip", f"{label}: {summary}")
             elif label == "followup_needed":
                 append_log(company, None, "followup-needed", summary)
@@ -244,8 +277,17 @@ def sync_once() -> None:
                     else:
                         append_log(company, None, "unmatched", summary)
         except Exception as e:
-            append_log("?", None, "error", f"{type(e).__name__}: {e}")
-        seen.add(msg_id)
+            tb = traceback.extract_tb(e.__traceback__)
+            where = tb[-1] if tb else None
+            loc = f"{where.filename}:{where.lineno} in {where.name}" if where else "unknown"
+            print(
+                f"[gmail-sync] crash msg_id={msg_id!r} at {loc}: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            print(traceback.format_exc(), flush=True)
+            append_log("?", None, "error", f"{type(e).__name__}: {e} @ {loc}")
+        if isinstance(msg_id, str):
+            seen.add(msg_id)
     state["seen_ids"] = list(seen)[-500:]
     write_state(state)
 
