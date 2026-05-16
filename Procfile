@@ -1,2 +1,1 @@
-worker-gmail: python gmail_sync.py
-worker-telegram: python telegram_bot.py
+web: bash start.sh
