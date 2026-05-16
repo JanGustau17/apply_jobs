@@ -1,0 +1,16 @@
+# Python deps for gmail_sync.py and telegram_bot.py.
+# Install: pip install -r requirements.txt
+
+python-dotenv>=1.0.1
+PyYAML>=6.0.1
+
+# OpenAI client (gmail-sync classification)
+openai>=1.43.0
+
+# Gmail API
+google-api-python-client>=2.140.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.1
+
+# Telegram bot
+python-telegram-bot>=21.5
