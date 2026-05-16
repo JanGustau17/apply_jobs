@@ -212,8 +212,14 @@ def sync_once() -> None:
     canonical = load_canonical_statuses()
     svc = gmail_service()
     state = read_state()
-    seen = set(state.get("seen_ids", []))
-    ids = list_recent_recruiter_messages(svc)
+    raw_seen = state.get("seen_ids", []) or []
+    seen: set[str] = set()
+    for entry in raw_seen:
+        if isinstance(entry, str):
+            seen.add(entry)
+        elif isinstance(entry, dict) and isinstance(entry.get("id"), str):
+            seen.add(entry["id"])
+    ids = [i for i in list_recent_recruiter_messages(svc) if isinstance(i, str)]
     new_ids = [i for i in ids if i not in seen]
     print(f"[gmail-sync] candidates={len(ids)} new={len(new_ids)}", flush=True)
     for msg_id in new_ids:
