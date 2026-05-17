@@ -45,6 +45,9 @@ MAX_PAGE_CHARS = 12000
 LINE_PENDING_RE = re.compile(r"^- \[ \]\s+(\S+)(.*)$")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# Silence libs that log full request URLs (would leak bot token / API keys).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("pipeline-worker")
 
 

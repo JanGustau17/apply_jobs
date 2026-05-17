@@ -45,6 +45,10 @@ URL_RE = re.compile(r"https?://\S+")
 REPLY_RE = re.compile(r"^#(\d+)\s+(.+)$", re.DOTALL)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# Silence libs that log full request URLs (would leak bot token).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.WARNING)
 log = logging.getLogger("telegram-bot")
 
 
