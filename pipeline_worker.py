@@ -300,7 +300,10 @@ def main() -> None:
     load_dotenv(ROOT / ".env")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit("OPENAI_API_KEY missing")
+        # Do not crash sibling workers via start.sh wait -n cascade. Idle instead.
+        log.error("OPENAI_API_KEY missing — pipeline-worker disabled, sleeping forever")
+        while True:
+            time.sleep(3600)
     client = OpenAI(api_key=api_key)
     log.info("pipeline-worker loop start (interval=%ds, batch=%d)", POLL_INTERVAL_SECONDS, BATCH_SIZE)
     while True:

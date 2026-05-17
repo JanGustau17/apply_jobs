@@ -159,7 +159,9 @@ def main() -> None:
     load_dotenv(ROOT / ".env")
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise SystemExit("TELEGRAM_BOT_TOKEN missing in .env")
+        log.error("TELEGRAM_BOT_TOKEN missing — bot disabled, sleeping forever")
+        _sleep_forever()
+        return
 
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -169,7 +171,19 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     log.info("Telegram bot starting…")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        # Do not crash sibling workers (gmail_sync, pipeline_worker).
+        # On InvalidToken / Conflict / network: log and idle so start.sh wait -n stays blocked.
+        log.error("telegram bot fatal: %s: %s — bot disabled, sleeping forever", type(e).__name__, e)
+        _sleep_forever()
+
+
+def _sleep_forever() -> None:
+    import time as _t
+    while True:
+        _t.sleep(3600)
 
 
 if __name__ == "__main__":
